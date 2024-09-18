@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover"
+    />
+    <script src="./js/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <script src="./js/bignumber.js" type="application/javascript"></script>
+    <script src="./js/eth.js?v=1234"></script>
+  </head>
+  <body>
+    <button onclick="walletLogin()">连接钱包</button> <br/>
+    <input id="currentWalletAddress" placeholder="当前钱包地址" width="100%" /> <br/><br/>
+
+     <!-- 领取测试代币 -->
+     <input id="usdtAddress" placeholder="领取代币的地址" width="100%" /> <br/>
+     <input id="usdtNum" placeholder="领取代币的数量" width="100%" /> <br/>
+     <button onclick="handleCreateUsdt()">领取测试代币</button> <br/>
+     <br/>
+
+     <!-- 查询授权额度 -->
+     <button onclick="getApproveAmount()">查看授权额度</button>
+     <span id="approvedAmount" style="color: red"></span>
+     <br />
+     <br />
+
+    <!-- 授权操作 -->
+    <input id="approveNum" placeholder="授权数量" width="100%" />
+    <button onclick="approveToken()">授权</button> <br/>
+    <br />
+
+   
+
+    <!-- 查询钱包USDT余额操作 -->
+    <input id="getUsdtNum" placeholder="查询USDT余额 地址" width="100%" /> <br/>
+    <button onclick="GetUsdtNum()">获取钱包USDT余额</button>
+    <span id="currUsdtNum" style="color: red"></span>
+    <br /> <br />
+
+
+    <span>----------充值操作-------------</span> <br/>
+    <input id="depositNum" placeholder="充值数量" width="100%" />
+    <button onclick="handleDeposit()">充值</button>
+    <p id="depositResult"></p>
+    <br/>
+    
+
+    <span>-----------提现操作------------</span> <br/>
+    <input id="withdrawAddress" placeholder="收款人钱包地址" />
+    <br />
+    <input id="withdrawNum" placeholder="提现数量" width="100%" />
+    <br/>
+    <button onclick="handleWithdraw()">提现</button>
+    <p id="withdrawResult"></p>
+    <br />
+
+    <span>查询业务合约余额</span> <br/>
+    <button onclick="getContractBalance()">查询业务合约余额</button>
+    <p id="contractBalance"></p>
+
+    <script>
+      const defaultAccount = (address) => {
+        console.log("defaultAccount==", address);
+        document.getElementById("currentWalletAddress").value = address;
+        document.getElementById("getUsdtNum").value = address;
+      };
+
+      const handleCreateUsdt = async() => {
+        const receiver = document.getElementById("usdtAddress").value;
+        const amount = document.getElementById("usdtNum").value;
+        console.log("usdtAddress is", receiver, amount);
+        const resp = await mint(receiver, amount);
+        console.log("handleCreateUsdt 交易hash", resp.result);
+      }
+
+      const walletLogin = async () => {
+        // 连接钱包
+        const connectResp = await connectWalletEth();
+        if (!connectResp.success) {
+            console.log("connectWalletEth failed: ", connectResp.message);
+            return;
+        }
+
+        console.log('connectResp account:', connectResp.result[0]);
+        const address = connectResp.result[0];
+        // 钱包消息签名
+        const message = Math.random().toString(36).slice(-8);
+        const signResp = await signData(address, message);
+        console.log("signResp==", signResp);
+
+        if(!signResp.success) return;
+        const signature = signResp.result;
+
+        const params = {
+          address: address,
+          message: message,
+          signature: signature
+        }
+
+//        const loginResp = login(params);
+//        console.log("loginResp==", loginResp);
+        defaultAccount(address);
+        
+      };
+
+      const getApproveAmount = async () => {
+        const address = document.getElementById("currentWalletAddress").value;
+        const approveResp = await allowance(address);
+        const approveAmount = approveResp.result;
+        console.log( "授权额度为：", approveAmount );
+        document.getElementById("approvedAmount").innerText = "当前授权额度为:" + approveAmount
+      };
+
+      const approveToken = async () => {
+        const approveNum = document.getElementById("approveNum").value;
+        const approveResp = await approve(approveNum);
+        console.log("approveResp==", approveResp);
+      };
+
+      const handleDeposit = async () => {
+        const depositNum = document.getElementById("depositNum").value;
+        const depositResp = await deposit(depositNum, 1);
+        console.log("depositResp==", depositResp);
+        document.getElementById("depositResult").innerText = depositResp.result;
+      };
+
+      const GetUsdtNum = async () => {
+        const address = document.getElementById("getUsdtNum").value;
+        const usdtNumResp = await balanceOf(address);
+        console.log("usdtNumResp==", usdtNumResp);
+        document.getElementById("currUsdtNum").innerText = usdtNumResp.result;
+      };
+      
+      
+
+
+      function login(params) {
+        let jsonResp = {};
+        Ajax.post(
+          "http://127.0.0.1:8081/eth/login",
+          JSON.stringify(params),
+          function (resp) {
+            jsonResp = JSON.parse(resp);
+            if (jsonResp.Res === 0) {
+              jsonResp.address = params.address;
+            }
+          }
+        );
+        return jsonResp;
+      }
+
+       // 提现
+       const handleWithdraw = async () => {
+        // requestWithdraw
+        const address = document.getElementById("withdrawAddress").value
+        // 注意: 提现时需要有提现订单ID, 应该由业务系统生成，此处为方便测试，该提现订单ID为随机生成
+        const withdrawOrderId = Math.random().toString().slice(-6)
+        const amount = document.getElementById("withdrawNum").value
+        const params = {
+          "address": address,
+          "order": withdrawOrderId,
+          "amount": ethers.utils.parseEther(amount).toString()
+        }
+        let jsonResp = {}
+        Ajax.post(
+            "http://127.0.0.1:8081/eth/requestWithdraw",
+            JSON.stringify(params),
+            function (resp) {
+              jsonResp = JSON.parse(resp);
+              console.log('jsonResp', jsonResp)
+            }
+        );
+        document.getElementById("withdrawResult").innerText = JSON.stringify(jsonResp)
+      }
+
+      const getContractBalance = async () => {
+        const balanceResp = await queryContractBalance();
+        console.log("balanceResp==", balanceResp);
+        document.getElementById("contractBalance").innerText = balanceResp.result;
+      };
+
+      var Ajax = {
+        post: function (url, data, callback) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("POST", url, false);
+          // 添加http头，发送信息至服务器时内容编码类型
+          xhr.setRequestHeader("Content-Type", "application/json");
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState == 4) {
+              if (xhr.status == 200 || xhr.status == 304) {
+                callback(xhr.responseText);
+              }
+            }
+          };
+          xhr.send(data);
+        },
+      };
+
+      
+    </script>
+  </body>
+</html>
