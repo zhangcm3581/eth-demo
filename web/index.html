@@ -6,6 +6,11 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover"
     />
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+    <script>
+      // VConsole will be exported to `window.VConsole` by default.
+      var vConsole = new window.VConsole();
+    </script>
     <script src="./js/ethers-5.2.umd.min.js" type="application/javascript"></script>
     <script src="./js/bignumber.js" type="application/javascript"></script>
     <script src="./js/eth.js?v=1234"></script>
@@ -14,21 +19,36 @@
     <button onclick="walletLogin()">连接钱包</button> <br/>
     <input id="currentWalletAddress" placeholder="当前钱包地址" width="100%" /> <br/><br/>
 
-     <!-- 领取测试代币 -->
+     <!-- 领取USDT测试代币 -->
      <input id="usdtAddress" placeholder="领取代币的地址" width="100%" /> <br/>
      <input id="usdtNum" placeholder="领取代币的数量" width="100%" /> <br/>
-     <button onclick="handleCreateUsdt()">领取测试代币</button> <br/>
+     <button onclick="handleCreateUsdt()">领取USDT测试代币</button> <br/>
      <br/>
 
-     <!-- 查询授权额度 -->
-     <button onclick="getApproveAmount()">查看授权额度</button>
-     <span id="approvedAmount" style="color: red"></span>
-     <br />
+     <!-- 领取USDC测试代币 -->
+     <input id="usdcAddress" placeholder="领取代币的地址" width="100%" /> <br/>
+     <input id="usdcNum" placeholder="领取代币的数量" width="100%" /> <br/>
+     <button onclick="handleCreateUsdc()">领取USDC测试代币</button> <br/>
+     <br/>
+
+     <!-- 查询USDT授权额度 -->
+     <button onclick="getUsdtApproveAmount()">查看USDT授权额度</button>
+     <span id="usdtApprovedAmount" style="color: red"></span>
      <br />
 
+      <!-- 查询USDT授权额度 -->
+      <button onclick="getUsdcApproveAmount()">查看USDC授权额度</button>
+      <span id="usdcApprovedAmount" style="color: red"></span>
+      <br />
+      <br />
+
     <!-- 授权操作 -->
-    <input id="approveNum" placeholder="授权数量" width="100%" />
-    <button onclick="approveToken()">授权</button> <br/>
+    <input id="usdtApproveNum" placeholder="USDT授权数量" width="100%" />
+    <button onclick="usdtApproveToken()">USDT授权</button> <br/>
+    <br />
+
+    <input id="usdcApproveNum" placeholder="USDC授权数量" width="100%" />
+    <button onclick="usdcApproveToken()">USDC授权</button> <br/>
     <br />
 
    
@@ -36,14 +56,23 @@
     <!-- 查询钱包USDT余额操作 -->
     <input id="getUsdtNum" placeholder="查询USDT余额 地址" width="100%" /> <br/>
     <button onclick="GetUsdtNum()">获取钱包USDT余额</button>
-    <span id="currUsdtNum" style="color: red"></span>
+    <span id="usdtCurrUsdtNum" style="color: red"></span>
+    <br /><br />
+
+    <input id="getUsdcNum" placeholder="查询USDC余额 地址" width="100%" /> <br/>
+    <button onclick="GetUsdcNum()">获取钱包USDC余额</button>
+    <span id="usdcCurrUsdtNum" style="color: red"></span>
     <br /> <br />
 
 
     <span>----------充值操作-------------</span> <br/>
-    <input id="depositNum" placeholder="充值数量" width="100%" />
-    <button onclick="handleDeposit()">充值</button>
-    <p id="depositResult"></p>
+    <input id="usdtDepositNum" placeholder="USDT充值数量" width="100%" />
+    <button onclick="handleUsdtDeposit()">USDT充值</button>
+    <p id="usdtDepositResult"></p>
+
+    <input id="usdcDepositNum" placeholder="USDC充值数量" width="100%" />
+    <button onclick="handleUsdcDeposit()">USDC充值</button>
+    <p id="usdcDepositResult"></p>
     <br/>
     
 
@@ -56,22 +85,34 @@
     <p id="withdrawResult"></p>
     <br />
 
-    <span>查询业务合约余额</span> <br/>
-    <button onclick="getContractBalance()">查询业务合约余额</button>
-    <p id="contractBalance"></p>
+    <span>-----查询业务合约余额----</span> <br/> <br/>
+    <button onclick="getContractUsdtBalance()">查询业务合约USDT余额</button>
+    <p id="contractUsdtBalance"></p>
+
+    <button onclick="getContractUsdcBalance()">查询业务合约USDT余额</button>
+    <p id="contractUsdcBalance"></p>
 
     <script>
       const defaultAccount = (address) => {
         console.log("defaultAccount==", address);
         document.getElementById("currentWalletAddress").value = address;
         document.getElementById("getUsdtNum").value = address;
+        document.getElementById("getUsdcNum").value = address;
       };
 
       const handleCreateUsdt = async() => {
         const receiver = document.getElementById("usdtAddress").value;
         const amount = document.getElementById("usdtNum").value;
         console.log("usdtAddress is", receiver, amount);
-        const resp = await mint(receiver, amount);
+        const resp = await mintUsdt(receiver, amount);
+        console.log("handleCreateUsdt 交易hash", resp.result);
+      }
+
+      const handleCreateUsdc = async() => {
+        const receiver = document.getElementById("usdcAddress").value;
+        const amount = document.getElementById("usdcNum").value;
+        console.log("usdcAddress is", receiver, amount);
+        const resp = await mintUsdc(receiver, amount);
         console.log("handleCreateUsdt 交易hash", resp.result);
       }
 
@@ -86,7 +127,8 @@
         console.log('connectResp account:', connectResp.result[0]);
         const address = connectResp.result[0];
         // 钱包消息签名
-        const message = Math.random().toString(36).slice(-8);
+        const message = 'Welcome!'
+        console.log('message:', message);
         const signResp = await signData(address, message);
         console.log("signResp==", signResp);
 
@@ -105,32 +147,61 @@
         
       };
 
-      const getApproveAmount = async () => {
+      const getUsdtApproveAmount = async () => {
         const address = document.getElementById("currentWalletAddress").value;
-        const approveResp = await allowance(address);
+        const approveResp = await allowanceUsdt(address);
         const approveAmount = approveResp.result;
         console.log( "授权额度为：", approveAmount );
-        document.getElementById("approvedAmount").innerText = "当前授权额度为:" + approveAmount
+        document.getElementById("usdtApprovedAmount").innerText = "当前授权额度为:" + approveAmount
       };
 
-      const approveToken = async () => {
-        const approveNum = document.getElementById("approveNum").value;
-        const approveResp = await approve(approveNum);
+
+      const getUsdcApproveAmount = async () => {
+        const address = document.getElementById("currentWalletAddress").value;
+        const approveResp = await allowanceUsdc(address);
+        const approveAmount = approveResp.result;
+        console.log( "授权额度为：", approveAmount );
+        document.getElementById("usdcApprovedAmount").innerText = "当前授权额度为:" + approveAmount
+      };
+
+      const usdtApproveToken = async () => {
+        const approveNum = document.getElementById("usdtApproveNum").value;
+        const approveResp = await approveUsdt(approveNum);
         console.log("approveResp==", approveResp);
       };
 
-      const handleDeposit = async () => {
-        const depositNum = document.getElementById("depositNum").value;
-        const depositResp = await deposit(depositNum, 1);
-        console.log("depositResp==", depositResp);
-        document.getElementById("depositResult").innerText = depositResp.result;
+      const usdcApproveToken = async () => {
+        const approveNum = document.getElementById("usdcApproveNum").value;
+        const approveResp = await approveUsdc(approveNum);
+        console.log("approveResp==", approveResp);
+      };
+
+      const handleUsdtDeposit = async () => {
+        const depositNum = document.getElementById("usdtDepositNum").value;
+        const depositResp = await depositUsdt(depositNum);
+        console.log("usdt depositResp==", depositResp);
+        document.getElementById("usdtDepositResult").innerText = depositResp.result;
+      };
+
+      const handleUsdcDeposit = async () => {
+        const depositNum = document.getElementById("usdcDepositNum").value;
+        const depositResp = await depositUsdc(depositNum);
+        console.log("usdc depositResp==", depositResp);
+        document.getElementById("usdcDepositResult").innerText = depositResp.result;
       };
 
       const GetUsdtNum = async () => {
         const address = document.getElementById("getUsdtNum").value;
-        const usdtNumResp = await balanceOf(address);
+        const usdtNumResp = await balanceOfUsdt(address);
         console.log("usdtNumResp==", usdtNumResp);
-        document.getElementById("currUsdtNum").innerText = usdtNumResp.result;
+        document.getElementById("usdtCurrUsdtNum").innerText = usdtNumResp.result;
+      };
+
+      const GetUsdcNum = async () => {
+        const address = document.getElementById("getUsdcNum").value;
+        const usdcNumResp = await balanceOfUsdc(address);
+        console.log("usdtNumResp==", usdcNumResp);
+        document.getElementById("usdcCurrUsdtNum").innerText = usdcNumResp.result;
       };
       
       
@@ -175,10 +246,16 @@
         document.getElementById("withdrawResult").innerText = JSON.stringify(jsonResp)
       }
 
-      const getContractBalance = async () => {
-        const balanceResp = await queryContractBalance();
+      const getContractUsdtBalance = async () => {
+        const balanceResp = await queryContractUsdtBalance();
         console.log("balanceResp==", balanceResp);
-        document.getElementById("contractBalance").innerText = balanceResp.result;
+        document.getElementById("contractUsdtBalance").innerText = balanceResp.result;
+      };
+
+      const getContractUsdcBalance = async () => {
+        const balanceResp = await queryContractUsdcBalance();
+        console.log("balanceResp==", balanceResp);
+        document.getElementById("contractUsdcBalance").innerText = balanceResp.result;
       };
 
       var Ajax = {
